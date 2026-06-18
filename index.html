@@ -1,0 +1,1364 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PBP – Custom PC Painting</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Audiowide&family=Inter:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+  :root{
+    --bg-deep: #1a0b2e;
+    --bg-panel: #241238;
+    --sun-orange: #ff8a3d;
+    --sun-pink: #ff3d77;
+    --sun-magenta: #e0218a;
+    --cyan: #4dd9e8;
+    --cream: #fff4e8;
+    --line: rgba(255,244,232,0.12);
+    --radius: 14px;
+  }
+
+  *{ box-sizing: border-box; margin:0; padding:0; }
+
+  html{ scroll-behavior: smooth; }
+
+  body{
+    background: var(--bg-deep);
+    color: var(--cream);
+    font-family: 'Inter', sans-serif;
+    line-height: 1.5;
+    overflow-x: hidden;
+  }
+
+  /* ===== Background sunset grid ===== */
+  .sunset-bg{
+    position: fixed;
+    top:0; left:0; right:0;
+    height: 100vh;
+    z-index: -2;
+    background: linear-gradient(180deg, #ff9d3d 0%, #ff7b3d 18%, #ff4d6e 42%, #e0218a 68%, #6a1b6e 88%, var(--bg-deep) 100%);
+    opacity: 0.55;
+  }
+
+  .grid-overlay{
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    height: 45vh;
+    z-index: -1;
+    background-image:
+      linear-gradient(rgba(77,217,232,0.18) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(77,217,232,0.18) 1px, transparent 1px);
+    background-size: 60px 60px;
+    transform: perspective(300px) rotateX(60deg) scale(2.2);
+    transform-origin: bottom;
+    mask-image: linear-gradient(to top, black 30%, transparent 90%);
+    -webkit-mask-image: linear-gradient(to top, black 30%, transparent 90%);
+    opacity: 0.5;
+  }
+
+  /* ===== Header ===== */
+  header{
+    display:flex;
+    align-items:center;
+    justify-content: space-between;
+    padding: 24px 6vw;
+    position: relative;
+    z-index: 10;
+  }
+
+  .logo-wrap{
+    display:flex;
+    align-items:center;
+    gap: 14px;
+  }
+
+  .logo-wrap img{
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    box-shadow: 0 0 24px rgba(77,217,232,0.45);
+  }
+
+  .brand-name{
+    font-family:'Audiowide', sans-serif;
+    font-size: 1.6rem;
+    letter-spacing: 0.12em;
+    color: var(--cyan);
+    text-shadow: 0 0 12px rgba(77,217,232,0.55);
+  }
+
+  .brand-sub{
+    font-family:'Space Mono', monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: rgba(255,244,232,0.6);
+    margin-top: 2px;
+  }
+
+  nav a{
+    color: var(--cream);
+    text-decoration: none;
+    font-size: 0.9rem;
+    margin-left: 28px;
+    font-weight: 500;
+    opacity: 0.85;
+    transition: opacity .2s, color .2s;
+  }
+  nav a:hover{ color: var(--cyan); opacity: 1; }
+
+  /* ===== Hero ===== */
+  .hero{
+    position: relative;
+    z-index: 5;
+    padding: 8vh 6vw 10vh;
+    text-align: center;
+  }
+
+  .hero h1{
+    font-family:'Audiowide', sans-serif;
+    font-size: clamp(2.4rem, 7vw, 5.2rem);
+    line-height: 1.05;
+    letter-spacing: 0.04em;
+    background: linear-gradient(180deg, #fff4e8 0%, var(--cyan) 60%, var(--sun-pink) 130%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    text-shadow: 0 0 40px rgba(255,61,119,0.25);
+  }
+
+  .hero p{
+    max-width: 560px;
+    margin: 22px auto 0;
+    font-size: 1.05rem;
+    color: rgba(255,244,232,0.85);
+  }
+
+  .hero-cta{
+    margin-top: 36px;
+    display:inline-block;
+    padding: 16px 38px;
+    border-radius: 999px;
+    background: linear-gradient(90deg, var(--sun-orange), var(--sun-magenta));
+    color: var(--bg-deep);
+    font-weight: 700;
+    text-decoration: none;
+    font-size: 1rem;
+    letter-spacing: 0.04em;
+    box-shadow: 0 8px 30px rgba(255,61,119,0.35);
+    transition: transform .2s, box-shadow .2s;
+  }
+  .hero-cta:hover{ transform: translateY(-2px); box-shadow: 0 12px 36px rgba(255,61,119,0.5); }
+
+  /* ===== Section shell ===== */
+  .section{
+    position: relative;
+    z-index: 5;
+    max-width: 920px;
+    margin: 0 auto;
+    padding: 5vh 6vw 0;
+  }
+
+  .section-head{
+    display:flex;
+    align-items: baseline;
+    gap: 14px;
+    margin-bottom: 26px;
+  }
+
+  .section-eyebrow{
+    font-family:'Space Mono', monospace;
+    font-size: 0.75rem;
+    letter-spacing: 0.2em;
+    color: var(--cyan);
+    text-transform: uppercase;
+  }
+
+  .section-head h2{
+    font-family:'Audiowide', sans-serif;
+    font-size: clamp(1.6rem, 4vw, 2.4rem);
+    letter-spacing: 0.03em;
+  }
+
+  .panel{
+    background: rgba(36,18,56,0.55);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 32px;
+    backdrop-filter: blur(6px);
+  }
+
+  /* ===== Form layout ===== */
+  .field-grid{
+    display:grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 22px;
+  }
+
+  @media (max-width: 720px){
+    .field-grid{ grid-template-columns: 1fr; }
+  }
+
+  .field{
+    display:flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .field.full{ grid-column: 1 / -1; }
+
+  .field label{
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--cyan);
+    letter-spacing: 0.02em;
+  }
+
+  .field input[type="text"],
+  .field input[type="email"],
+  .field input[type="tel"],
+  .field select,
+  .field textarea{
+    background: rgba(26,11,46,0.7);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 13px 14px;
+    color: var(--cream);
+    font-family: 'Inter', sans-serif;
+    font-size: 0.95rem;
+    outline: none;
+    transition: border-color .2s, box-shadow .2s;
+  }
+
+  .field textarea{ resize: vertical; min-height: 90px; }
+
+  .field input:focus,
+  .field select:focus,
+  .field textarea:focus{
+    border-color: var(--cyan);
+    box-shadow: 0 0 0 3px rgba(77,217,232,0.18);
+  }
+
+  .field select{
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='9' viewBox='0 0 14 9'%3E%3Cpath d='M1 1L7 7L13 1' stroke='%234dd9e8' stroke-width='2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 16px center;
+    cursor: pointer;
+  }
+
+  .hint{
+    font-size: 0.78rem;
+    color: rgba(255,244,232,0.5);
+  }
+
+  /* ===== Dropzone ===== */
+  .dropzone{
+    border: 2px dashed rgba(77,217,232,0.4);
+    border-radius: var(--radius);
+    padding: 48px 24px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color .2s, background .2s, box-shadow .2s;
+    background: rgba(26,11,46,0.4);
+  }
+
+  .dropzone.dragover{
+    border-color: var(--cyan);
+    background: rgba(77,217,232,0.08);
+    box-shadow: 0 0 30px rgba(77,217,232,0.25) inset;
+  }
+
+  .dropzone-icon{
+    font-family:'Audiowide', sans-serif;
+    font-size: 2.6rem;
+    color: var(--cyan);
+    margin-bottom: 10px;
+    text-shadow: 0 0 20px rgba(77,217,232,0.5);
+  }
+
+  .dropzone strong{ color: var(--cream); font-size: 1.05rem; }
+  .dropzone span{ display:block; margin-top: 8px; font-size: 0.85rem; color: rgba(255,244,232,0.55); }
+
+  #file-input{ display:none; }
+
+  .preview-grid{
+    display:grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 14px;
+    margin-top: 22px;
+  }
+
+  .preview-item{
+    position: relative;
+    border-radius: 10px;
+    overflow: hidden;
+    aspect-ratio: 1;
+    border: 1px solid var(--line);
+    background: rgba(26,11,46,0.6);
+  }
+
+  .preview-item img{
+    width:100%; height:100%; object-fit: cover; display:block;
+  }
+
+  .preview-item .remove{
+    position: absolute;
+    top: 6px; right: 6px;
+    width: 24px; height: 24px;
+    border-radius: 50%;
+    background: rgba(26,11,46,0.85);
+    border: 1px solid var(--cyan);
+    color: var(--cyan);
+    font-size: 0.85rem;
+    line-height: 1;
+    display:flex; align-items:center; justify-content:center;
+    cursor: pointer;
+  }
+
+  .preview-item .filename{
+    position: absolute;
+    bottom: 0; left:0; right:0;
+    background: rgba(26,11,46,0.8);
+    font-size: 0.65rem;
+    padding: 4px 6px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* ===== 3D viewer + side-based upload ===== */
+  .upload-layout{
+    display:grid;
+    grid-template-columns: minmax(260px, 380px) 1fr;
+    gap: 32px;
+    align-items: start;
+  }
+
+  @media (max-width: 760px){
+    .upload-layout{ grid-template-columns: 1fr; }
+  }
+
+  .viewer-wrap{
+    position: relative;
+  }
+
+  .viewer-canvas-holder{
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    border-radius: var(--radius);
+    border: 1px solid var(--line);
+    background: radial-gradient(circle at 50% 35%, rgba(77,217,232,0.08), rgba(26,11,46,0.6) 70%);
+    overflow: hidden;
+    position: relative;
+    touch-action: none;
+    cursor: grab;
+  }
+  .viewer-canvas-holder.dragging{ cursor: grabbing; }
+
+  .viewer-canvas-holder canvas{
+    display:block;
+    width: 100% !important;
+    height: 100% !important;
+  }
+
+  .viewer-hint{
+    text-align:center;
+    font-size: 0.78rem;
+    color: rgba(255,244,232,0.5);
+    margin-top: 12px;
+  }
+
+  .side-progress{
+    display:flex;
+    gap: 8px;
+    margin-top: 16px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .side-chip{
+    font-size: 0.74rem;
+    padding: 6px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    color: rgba(255,244,232,0.55);
+    display:flex;
+    align-items:center;
+    gap: 6px;
+  }
+
+  .side-chip.has-files{
+    border-color: var(--cyan);
+    color: var(--cyan);
+    background: rgba(77,217,232,0.08);
+  }
+
+  .side-chip .dot{
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: rgba(255,244,232,0.3);
+  }
+  .side-chip.has-files .dot{
+    background: var(--cyan);
+    box-shadow: 0 0 6px rgba(77,217,232,0.8);
+  }
+
+  .upload-panel-right{
+    display:flex;
+    flex-direction: column;
+  }
+
+  .active-side-label{
+    font-family:'Audiowide', sans-serif;
+    font-size: 1.1rem;
+    color: var(--cyan);
+    letter-spacing: 0.04em;
+    margin-bottom: 4px;
+  }
+
+  .active-side-desc{
+    font-size: 0.85rem;
+    color: rgba(255,244,232,0.55);
+    margin-bottom: 18px;
+  }
+
+  .dropzone.compact{
+    padding: 36px 20px;
+  }
+
+  .skip-side-toggle{
+    display:flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.85rem;
+    color: rgba(255,244,232,0.75);
+    cursor: pointer;
+    margin-bottom: 16px;
+    user-select: none;
+  }
+
+  .skip-side-toggle input{
+    position: absolute;
+    opacity: 0;
+    width: 0; height: 0;
+  }
+
+  .skip-checkbox-box{
+    width: 18px;
+    height: 18px;
+    border-radius: 5px;
+    border: 1.5px solid var(--line);
+    flex-shrink: 0;
+    position: relative;
+    transition: border-color .2s, background .2s;
+  }
+
+  .skip-side-toggle input:checked ~ .skip-checkbox-box{
+    border-color: var(--cyan);
+    background: var(--cyan);
+  }
+
+  .skip-side-toggle input:checked ~ .skip-checkbox-box::after{
+    content: '';
+    position: absolute;
+    left: 5px; top: 1px;
+    width: 5px; height: 9px;
+    border: solid var(--bg-deep);
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+  }
+
+  .dropzone.blank-mode{
+    opacity: 0.35;
+    pointer-events: none;
+    filter: grayscale(0.6);
+  }
+
+  .dropzone.glass-mode{
+    opacity: 0.35;
+    pointer-events: none;
+    filter: grayscale(0.6) hue-rotate(40deg);
+  }
+
+  .preview-grid.blank-mode,
+  .preview-grid.glass-mode{
+    opacity: 0.35;
+    pointer-events: none;
+  }
+
+  .side-only-options{
+    display: none;
+    flex-direction: column;
+  }
+
+  .side-only-options.visible{
+    display: flex;
+  }
+
+  .side-chip.is-blank{
+    border-color: rgba(255,244,232,0.3);
+    color: rgba(255,244,232,0.4);
+  }
+  .side-chip.is-blank .dot{
+    background: rgba(255,244,232,0.3);
+    box-shadow: none;
+  }
+
+  .side-chip.has-glass::after{
+    content: '◇';
+    margin-left: 4px;
+    color: var(--cyan);
+    font-size: 0.7rem;
+  }
+
+  .side-chip.has-display::after{
+    content: '▢';
+    margin-left: 4px;
+    color: var(--cyan);
+    font-size: 0.7rem;
+  }
+
+  /* ===== Toggle / radio cards ===== */
+  .option-row{
+    display:grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+    margin-top: 8px;
+  }
+
+  @media (max-width: 560px){
+    .option-row{ grid-template-columns: 1fr; }
+  }
+
+  .option-card{
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 20px;
+    cursor: pointer;
+    transition: border-color .2s, background .2s, transform .15s;
+    position: relative;
+    background: rgba(26,11,46,0.4);
+  }
+
+  .option-card input{ position: absolute; opacity: 0; }
+
+  .option-card .opt-title{
+    font-weight: 700;
+    font-size: 1.02rem;
+    margin-bottom: 4px;
+    display:flex;
+    align-items:center;
+    justify-content: space-between;
+  }
+
+  .option-card .opt-desc{
+    font-size: 0.85rem;
+    color: rgba(255,244,232,0.6);
+  }
+
+  .opt-badge{
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    border: 2px solid var(--cyan);
+    display:inline-block;
+    transition: background .2s, box-shadow .2s;
+  }
+
+  .option-card input:checked ~ .opt-badge{
+    background: var(--cyan);
+    box-shadow: 0 0 12px rgba(77,217,232,0.7);
+  }
+
+  .option-card:has(input:checked){
+    border-color: var(--cyan);
+    background: rgba(77,217,232,0.06);
+  }
+
+  .option-card:hover{ border-color: rgba(77,217,232,0.5); }
+
+  /* ===== Display sub-section ===== */
+  .display-sub{
+    margin-top: 26px;
+    max-height: 0;
+    overflow: hidden;
+    opacity: 0;
+    transition: max-height .35s ease, opacity .3s ease, margin-top .35s ease;
+  }
+
+  .display-sub.open{
+    max-height: 900px;
+    opacity: 1;
+  }
+
+  .display-sub-label{
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--cyan);
+    letter-spacing: 0.02em;
+    display:block;
+    margin-bottom: 4px;
+  }
+
+  .display-grid{
+    display:grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-top: 14px;
+  }
+
+  @media (max-width: 720px){
+    .display-grid{ grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 480px){
+    .display-grid{ grid-template-columns: 1fr; }
+  }
+
+  .display-card{
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 18px 16px;
+    cursor: pointer;
+    transition: border-color .2s, background .2s;
+    position: relative;
+    background: rgba(26,11,46,0.4);
+    text-align: center;
+  }
+
+  .display-card input{ position: absolute; opacity: 0; }
+
+  .display-card .disp-icon{
+    width: 100%;
+    margin: 0 auto 10px;
+    display:block;
+  }
+
+  .display-card .disp-name{
+    font-weight: 700;
+    font-size: 0.92rem;
+    margin-bottom: 4px;
+  }
+
+  .display-card .disp-desc{
+    font-size: 0.76rem;
+    color: rgba(255,244,232,0.55);
+    line-height: 1.4;
+  }
+
+  .display-card:hover{ border-color: rgba(77,217,232,0.5); }
+
+  .display-card:has(input:checked){
+    border-color: var(--cyan);
+    background: rgba(77,217,232,0.06);
+    box-shadow: 0 0 0 1px var(--cyan) inset;
+  }
+
+  .display-card:has(input:checked) .disp-name{
+    color: var(--cyan);
+  }
+
+  /* ===== Submit ===== */
+  .submit-row{
+    margin-top: 32px;
+    display:flex;
+    align-items:center;
+    justify-content: space-between;
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+
+  .submit-btn{
+    padding: 16px 44px;
+    border-radius: 999px;
+    border: none;
+    background: linear-gradient(90deg, var(--sun-orange), var(--sun-magenta));
+    color: var(--bg-deep);
+    font-weight: 700;
+    font-size: 1rem;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    box-shadow: 0 8px 30px rgba(255,61,119,0.35);
+    transition: transform .2s, box-shadow .2s;
+  }
+  .submit-btn:hover{ transform: translateY(-2px); box-shadow: 0 12px 36px rgba(255,61,119,0.5); }
+
+  .submit-note{
+    font-size: 0.8rem;
+    color: rgba(255,244,232,0.5);
+    max-width: 320px;
+  }
+
+  /* ===== Confirmation ===== */
+  .confirm-banner{
+    margin-top: 22px;
+    padding: 18px 22px;
+    border-radius: 12px;
+    border: 1px solid var(--cyan);
+    background: rgba(77,217,232,0.08);
+    color: var(--cyan);
+    font-weight: 600;
+    display: none;
+  }
+  .confirm-banner.show{ display:block; }
+
+  /* ===== Footer / palms ===== */
+  footer{
+    position: relative;
+    z-index: 5;
+    margin-top: 10vh;
+    padding: 60px 6vw 30px;
+    text-align: center;
+    color: rgba(255,244,232,0.45);
+    font-size: 0.85rem;
+  }
+
+  footer .footer-brand{
+    font-family:'Audiowide', sans-serif;
+    color: var(--cyan);
+    letter-spacing: 0.15em;
+    margin-bottom: 8px;
+    font-size: 0.95rem;
+  }
+</style>
+</head>
+<body>
+
+<div class="sunset-bg"></div>
+<div class="grid-overlay"></div>
+
+<header>
+  <div class="logo-wrap">
+    <img src="logo.png" alt="PBP Logo">
+    <div>
+      <div class="brand-name">PBP</div>
+      <div class="brand-sub">Custom PC Painting</div>
+    </div>
+  </div>
+  <nav>
+    <a href="#order">Bestellen</a>
+  </nav>
+</header>
+
+<section class="hero">
+  <h1>DEIN PC.<br>DEIN DESIGN.</h1>
+  <p>Wir verwandeln deinen Rechner in ein Unikat – individuell bemalt, nach deinen Vorgaben und deinem Style. Lade dein Wunschdesign hoch und sag uns, was wir bauen sollen.</p>
+  <a href="#order" class="hero-cta">Jetzt Design bestellen</a>
+</section>
+
+<section class="section" id="order">
+  <div class="section-head">
+    <span class="section-eyebrow">Schritt 1</span>
+    <h2>Deine Daten</h2>
+  </div>
+  <div class="panel">
+    <form id="order-form">
+      <div class="field-grid">
+        <div class="field">
+          <label for="name">Name</label>
+          <input type="text" id="name" name="name" placeholder="Max Mustermann" required>
+        </div>
+        <div class="field">
+          <label for="email">E-Mail</label>
+          <input type="email" id="email" name="email" placeholder="max@beispiel.de" required>
+        </div>
+        <div class="field">
+          <label for="phone">Telefon</label>
+          <input type="tel" id="phone" name="phone" placeholder="0151 234 567 89" required>
+        </div>
+        <div class="field">
+          <label for="case-model">Gehäuse-Modell</label>
+          <input type="text" id="case-model" name="case-model" placeholder="z.B. NZXT H510, Lian Li O11" required>
+        </div>
+        <div class="field">
+          <label for="case-size">Gehäusegröße</label>
+          <select id="case-size" name="case-size">
+            <option value="mini-itx">Mini-ITX</option>
+            <option value="micro-atx">Micro-ATX</option>
+            <option value="atx" selected>ATX</option>
+            <option value="full-tower">Full Tower</option>
+          </select>
+        </div>
+        <div class="field full">
+          <label for="details">Beschreibung & Details</label>
+          <textarea id="details" name="details" placeholder="Erzähl uns mehr über dein Wunschdesign: Motive, Stil, besondere Wünsche, Referenzen..."></textarea>
+        </div>
+      </div>
+    </form>
+  </div>
+</section>
+
+<section class="section">
+  <div class="section-head">
+    <span class="section-eyebrow">Schritt 2</span>
+    <h2>Design-Vorlagen hochladen</h2>
+  </div>
+  <div class="panel">
+    <div class="upload-layout">
+
+      <div class="viewer-wrap">
+        <div class="viewer-canvas-holder" id="viewer-holder"></div>
+        <p class="viewer-hint">Ziehen zum Drehen · Klick auf eine Seite, um dort ein Design hochzuladen</p>
+        <div class="side-progress" id="side-progress">
+          <div class="side-chip" data-side="front"><span class="dot"></span>Front</div>
+          <div class="side-chip" data-side="left"><span class="dot"></span>Links</div>
+          <div class="side-chip" data-side="right"><span class="dot"></span>Rechts</div>
+          <div class="side-chip" data-side="top"><span class="dot"></span>Oben</div>
+        </div>
+      </div>
+
+      <div class="upload-panel-right">
+        <div class="active-side-label" id="active-side-label">Front</div>
+        <div class="active-side-desc" id="active-side-desc">Lade hier dein Design für die Front des Gehäuses hoch.</div>
+
+        <label class="skip-side-toggle" id="skip-side-toggle">
+          <input type="checkbox" id="skip-side-checkbox">
+          <span class="skip-checkbox-box"></span>
+          Diese Seite frei lassen (kein Design, einfarbig/neutral)
+        </label>
+
+        <div class="side-only-options" id="side-only-options">
+          <label class="skip-side-toggle" id="glass-side-toggle">
+            <input type="checkbox" id="glass-side-checkbox">
+            <span class="skip-checkbox-box"></span>
+            Glasfenster auf dieser Seite (kein Design möglich)
+          </label>
+
+          <label class="skip-side-toggle" id="display-side-toggle">
+            <input type="checkbox" id="display-side-checkbox">
+            <span class="skip-checkbox-box"></span>
+            7″ Display einbauen (obere Ecke, Front-seitig)
+          </label>
+        </div>
+
+        <div class="dropzone compact" id="dropzone">
+          <div class="dropzone-icon">⬆</div>
+          <strong>PNG-Dateien hier ablegen</strong>
+          <span>oder klicken, um Dateien auszuwählen — mehrere Dateien möglich</span>
+        </div>
+        <input type="file" id="file-input" accept="image/png" multiple>
+        <div class="preview-grid" id="preview-grid"></div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="section-head">
+    <span class="section-eyebrow">Schritt 3</span>
+    <h2>Bestellung abschicken</h2>
+  </div>
+  <div class="panel">
+    <p class="hint" style="margin-bottom: 18px;">Display-Wünsche legst du direkt pro Seite im 3D-Modell oben fest.</p>
+
+    <div class="submit-row">
+      <button type="submit" form="order-form" class="submit-btn" id="submit-btn">Bestellung abschicken</button>
+      <p class="submit-note">Nach dem Absenden melden wir uns per E-Mail mit einem Angebot und den nächsten Schritten.</p>
+    </div>
+    <div class="confirm-banner" id="confirm-banner">✓ Danke! Deine Anfrage wurde erfasst. Wir melden uns bald bei dir.</div>
+  </div>
+</section>
+
+<footer>
+  <div class="footer-brand">PBP // CUSTOM PC PAINTING</div>
+  Handgemacht. Individuell. Einzigartig.
+</footer>
+
+<script>
+  /* ===================== Per-side file storage ===================== */
+  const SIDE_INFO = {
+    front: { label: 'Front', desc: 'Lade hier dein Design für die Front des Gehäuses hoch.' },
+    left:  { label: 'Links',  desc: 'Lade hier dein Design für das linke Seitenteil hoch.' },
+    right: { label: 'Rechts', desc: 'Lade hier dein Design für das rechte Seitenteil hoch.' },
+    top:   { label: 'Oben',   desc: 'Lade hier dein Design für die Oberseite des Gehäuses hoch.' }
+  };
+
+  const filesBySide = { front: [], left: [], right: [], top: [] };
+  const blankBySide = { front: false, left: false, right: false, top: false };
+  const displayBySide = { front: false, left: false, right: false, top: false };
+  const glassBySide = { front: false, left: false, right: false, top: false };
+  const SIDES_WITH_GLASS_AND_DISPLAY = ['left', 'right'];
+  let activeSide = 'front';
+
+  const dropzone = document.getElementById('dropzone');
+  const fileInput = document.getElementById('file-input');
+  const previewGrid = document.getElementById('preview-grid');
+  const activeSideLabel = document.getElementById('active-side-label');
+  const activeSideDesc = document.getElementById('active-side-desc');
+  const sideChips = document.querySelectorAll('.side-chip');
+  const skipSideCheckbox = document.getElementById('skip-side-checkbox');
+  const displaySideCheckbox = document.getElementById('display-side-checkbox');
+  const glassSideCheckbox = document.getElementById('glass-side-checkbox');
+  const sideOnlyOptions = document.getElementById('side-only-options');
+
+  dropzone.addEventListener('click', () => fileInput.click());
+
+  ['dragenter','dragover'].forEach(evt => {
+    dropzone.addEventListener(evt, e => {
+      e.preventDefault();
+      if(blankBySide[activeSide] || glassBySide[activeSide]) return;
+      dropzone.classList.add('dragover');
+    });
+  });
+
+  ['dragleave','drop'].forEach(evt => {
+    dropzone.addEventListener(evt, e => {
+      e.preventDefault();
+      dropzone.classList.remove('dragover');
+    });
+  });
+
+  dropzone.addEventListener('drop', e => {
+    if(blankBySide[activeSide] || glassBySide[activeSide]) return;
+    handleFiles(e.dataTransfer.files);
+  });
+
+  fileInput.addEventListener('change', e => {
+    handleFiles(e.target.files);
+    fileInput.value = '';
+  });
+
+  skipSideCheckbox.addEventListener('change', () => {
+    blankBySide[activeSide] = skipSideCheckbox.checked;
+    if(blankBySide[activeSide]){
+      filesBySide[activeSide] = [];
+      renderPreviewGrid();
+    }
+    applyDropzoneLockState();
+    updateSideChips();
+  });
+
+  glassSideCheckbox.addEventListener('change', () => {
+    glassBySide[activeSide] = glassSideCheckbox.checked;
+    if(glassBySide[activeSide]){
+      filesBySide[activeSide] = [];
+      renderPreviewGrid();
+    }
+    applyDropzoneLockState();
+    updateSideChips();
+    updateGlassFaceIndicator(activeSide);
+  });
+
+  displaySideCheckbox.addEventListener('change', () => {
+    displayBySide[activeSide] = displaySideCheckbox.checked;
+    updateSideChips();
+    updateDisplayFaceIndicator(activeSide);
+  });
+
+  function applyDropzoneLockState(){
+    const isBlank = blankBySide[activeSide];
+    const isGlass = glassBySide[activeSide];
+    dropzone.classList.toggle('blank-mode', isBlank && !isGlass);
+    dropzone.classList.toggle('glass-mode', isGlass);
+    previewGrid.classList.toggle('blank-mode', isBlank && !isGlass);
+    previewGrid.classList.toggle('glass-mode', isGlass);
+  }
+
+  function handleFiles(fileList){
+    [...fileList].forEach(file => {
+      if(file.type !== 'image/png') return;
+      filesBySide[activeSide].push(file);
+    });
+    renderPreviewGrid();
+    updateSideChips();
+  }
+
+  function renderPreviewGrid(){
+    previewGrid.innerHTML = '';
+    filesBySide[activeSide].forEach(file => {
+      const reader = new FileReader();
+      reader.onload = e => {
+        const item = document.createElement('div');
+        item.className = 'preview-item';
+        item.innerHTML = `
+          <img src="${e.target.result}" alt="${file.name}">
+          <div class="remove">×</div>
+          <div class="filename">${file.name}</div>
+        `;
+        item.querySelector('.remove').addEventListener('click', () => {
+          filesBySide[activeSide] = filesBySide[activeSide].filter(f => f !== file);
+          item.remove();
+          updateSideChips();
+        });
+        previewGrid.appendChild(item);
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function updateSideChips(){
+    sideChips.forEach(chip => {
+      const side = chip.dataset.side;
+      chip.classList.toggle('has-files', filesBySide[side].length > 0 && !blankBySide[side] && !glassBySide[side]);
+      chip.classList.toggle('is-blank', blankBySide[side] && !glassBySide[side]);
+      chip.classList.toggle('has-display', displayBySide[side]);
+      chip.classList.toggle('has-glass', glassBySide[side]);
+    });
+  }
+
+  function setActiveSide(side){
+    activeSide = side;
+    activeSideLabel.textContent = SIDE_INFO[side].label;
+    activeSideDesc.textContent = SIDE_INFO[side].desc;
+    skipSideCheckbox.checked = blankBySide[side];
+    displaySideCheckbox.checked = displayBySide[side];
+    glassSideCheckbox.checked = glassBySide[side];
+    sideOnlyOptions.classList.toggle('visible', SIDES_WITH_GLASS_AND_DISPLAY.includes(side));
+    applyDropzoneLockState();
+    renderPreviewGrid();
+    sideChips.forEach(chip => {
+      chip.style.outline = chip.dataset.side === side ? '1px solid var(--cyan)' : 'none';
+    });
+    highlightFace(side);
+  }
+
+  sideChips.forEach(chip => {
+    chip.addEventListener('click', () => setActiveSide(chip.dataset.side));
+  });
+
+  document.getElementById('order-form').addEventListener('submit', e => {
+    e.preventDefault();
+    document.getElementById('confirm-banner').classList.add('show');
+  });
+
+  /* ===================== 3D PC case viewer ===================== */
+  const holder = document.getElementById('viewer-holder');
+  const scene = new THREE.Scene();
+
+  const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 100);
+  camera.position.set(3.2, 2.4, 4.4);
+  camera.lookAt(0, 0, 0);
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  holder.appendChild(renderer.domElement);
+
+  function resizeRenderer(){
+    const size = holder.clientWidth;
+    renderer.setSize(size, size);
+    camera.aspect = 1;
+    camera.updateProjectionMatrix();
+  }
+  resizeRenderer();
+  window.addEventListener('resize', resizeRenderer);
+
+  // Lighting
+  scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+  const key = new THREE.DirectionalLight(0xffffff, 0.9);
+  key.position.set(4, 6, 4);
+  scene.add(key);
+  const rim = new THREE.DirectionalLight(0x4dd9e8, 0.6);
+  rim.position.set(-4, 2, -4);
+  scene.add(rim);
+
+  // Case group (tall tower box)
+  const caseGroup = new THREE.Group();
+  scene.add(caseGroup);
+
+  const W = 1.8, H = 2.6, D = 2.2; // width, height, depth
+
+  const bodyMat = new THREE.MeshStandardMaterial({ color: 0x1c0f2e, roughness: 0.55, metalness: 0.35 });
+  const bodyGeo = new THREE.BoxGeometry(W, H, D);
+  const body = new THREE.Mesh(bodyGeo, bodyMat);
+  caseGroup.add(body);
+
+  // Edge lines for a clean tech look
+  const edges = new THREE.EdgesGeometry(bodyGeo);
+  const edgeLines = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x4dd9e8, transparent: true, opacity: 0.4 }));
+  caseGroup.add(edgeLines);
+
+  // --- Front IO panel (top of front face): power button + USB hints ---
+  const ioGroup = new THREE.Group();
+  const ioPlateMat = new THREE.MeshStandardMaterial({ color: 0x0f0719, roughness: 0.4, metalness: 0.6 });
+  const ioPlate = new THREE.Mesh(new THREE.BoxGeometry(W * 0.5, 0.14, 0.02), ioPlateMat);
+  ioPlate.position.set(0, H/2 - 0.22, D/2 + 0.015);
+  ioGroup.add(ioPlate);
+
+  const powerBtnMat = new THREE.MeshStandardMaterial({ color: 0x4dd9e8, emissive: 0x4dd9e8, emissiveIntensity: 0.6 });
+  const powerBtn = new THREE.Mesh(new THREE.CircleGeometry(0.045, 16), powerBtnMat);
+  powerBtn.position.set(-W*0.16, H/2 - 0.22, D/2 + 0.026);
+  ioGroup.add(powerBtn);
+
+  for(let i = 0; i < 2; i++){
+    const usb = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.025, 0.01), new THREE.MeshStandardMaterial({ color: 0x666677 }));
+    usb.position.set(-0.02 + i * 0.09, H/2 - 0.22, D/2 + 0.026);
+    ioGroup.add(usb);
+  }
+  caseGroup.add(ioGroup);
+
+  // --- Front mesh/vent pattern (lower 2/3 of front) ---
+  const ventGroup = new THREE.Group();
+  const ventMat = new THREE.MeshStandardMaterial({ color: 0x0f0719, roughness: 0.7 });
+  const ventRows = 14, ventCols = 9;
+  const ventAreaW = W * 0.74, ventAreaH = H * 0.52;
+  const ventStartY = -H/2 + 0.18;
+  for(let r = 0; r < ventRows; r++){
+    for(let c = 0; c < ventCols; c++){
+      const slot = new THREE.Mesh(new THREE.BoxGeometry(ventAreaW/ventCols * 0.7, ventAreaH/ventRows * 0.55, 0.015), ventMat);
+      slot.position.set(
+        -ventAreaW/2 + (c + 0.5) * (ventAreaW/ventCols),
+        ventStartY + (r + 0.5) * (ventAreaH/ventRows),
+        D/2 + 0.012
+      );
+      ventGroup.add(slot);
+    }
+  }
+  caseGroup.add(ventGroup);
+
+  // --- Top vent strip ---
+  const topVentGroup = new THREE.Group();
+  const topVentRows = 4, topVentCols = 10;
+  const topVentAreaW = W * 0.6, topVentAreaD = D * 0.5;
+  for(let r = 0; r < topVentRows; r++){
+    for(let c = 0; c < topVentCols; c++){
+      const slot = new THREE.Mesh(new THREE.BoxGeometry(topVentAreaW/topVentCols * 0.6, 0.015, topVentAreaD/topVentRows * 0.6), ventMat);
+      slot.position.set(
+        -topVentAreaW/2 + (c + 0.5) * (topVentAreaW/topVentCols),
+        H/2 + 0.012,
+        -D/4 + (r + 0.5) * (topVentAreaD/topVentRows)
+      );
+      topVentGroup.add(slot);
+    }
+  }
+  caseGroup.add(topVentGroup);
+
+  // --- Standoff feet (chunkier, more visible) ---
+  const footGeo = new THREE.CylinderGeometry(0.1, 0.12, 0.14, 12);
+  const footMat = new THREE.MeshStandardMaterial({ color: 0x0a0512, roughness: 0.6 });
+  [[-W/2+0.18, -H/2-0.07, D/2-0.18], [W/2-0.18, -H/2-0.07, D/2-0.18], [-W/2+0.18, -H/2-0.07, -D/2+0.18], [W/2-0.18, -H/2-0.07, -D/2+0.18]]
+    .forEach(p => {
+      const f = new THREE.Mesh(footGeo, footMat);
+      f.position.set(...p);
+      caseGroup.add(f);
+    });
+
+  // Clickable face panels, slightly offset outward from the body
+  const FACE_DEFS = [
+    { side: 'front', pos: [0, 0, D/2 + 0.01], rot: [0, 0, 0], w: W, h: H, color: 0xff3d77 },
+    { side: 'left',  pos: [-W/2 - 0.01, 0, 0], rot: [0, -Math.PI/2, 0], w: D, h: H, color: 0xff8a3d },
+    { side: 'right', pos: [W/2 + 0.01, 0, 0], rot: [0, Math.PI/2, 0], w: D, h: H, color: 0xe0218a },
+    { side: 'top',   pos: [0, H/2 + 0.01, 0], rot: [-Math.PI/2, 0, 0], w: W, h: D, color: 0x4dd9e8 },
+  ];
+
+  const faceMeshes = {};
+
+  FACE_DEFS.forEach(def => {
+    const geo = new THREE.PlaneGeometry(def.w, def.h);
+    const mat = new THREE.MeshStandardMaterial({
+      color: def.color,
+      transparent: true,
+      opacity: 0.16,
+      roughness: 0.5,
+      side: THREE.DoubleSide
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(...def.pos);
+    mesh.rotation.set(...def.rot);
+    mesh.userData.side = def.side;
+    mesh.userData.baseOpacity = 0.16;
+    mesh.userData.hoverOpacity = 0.4;
+    mesh.userData.activeOpacity = 0.55;
+    caseGroup.add(mesh);
+    faceMeshes[def.side] = mesh;
+  });
+
+  function highlightFace(activeSideName){
+    Object.values(faceMeshes).forEach(mesh => {
+      mesh.material.opacity = mesh.userData.side === activeSideName
+        ? mesh.userData.activeOpacity
+        : mesh.userData.baseOpacity;
+    });
+  }
+  highlightFace(activeSide);
+
+  // --- 7" display indicator meshes — left/right sides only, top corner nearest the front ---
+  // A real 7" display is roughly 9cm x 15cm -> approximated relative to case scale.
+  const DISPLAY_W = 0.62, DISPLAY_H = 0.42;
+  const displayMeshes = {};
+
+  // For left/right side planes, local +X after rotation corresponds to:
+  //  left  (rotY = -90deg): local +X maps to world +Z  -> front is world +Z -> local +X is "toward front"
+  //  right (rotY = +90deg): local +X maps to world -Z  -> front is world +Z -> local -X is "toward front"
+  const FRONT_CORNER_SIGN = { left: 1, right: -1 };
+
+  SIDES_WITH_GLASS_AND_DISPLAY.forEach(side => {
+    const def = FACE_DEFS.find(f => f.side === side);
+    const group = new THREE.Group();
+
+    const bezelMat = new THREE.MeshStandardMaterial({ color: 0x0a0512, roughness: 0.4, metalness: 0.5 });
+    const bezel = new THREE.Mesh(new THREE.PlaneGeometry(DISPLAY_W + 0.05, DISPLAY_H + 0.05), bezelMat);
+    group.add(bezel);
+
+    const screenMat = new THREE.MeshStandardMaterial({
+      color: 0x4dd9e8, emissive: 0x4dd9e8, emissiveIntensity: 0.5, roughness: 0.2
+    });
+    const screen = new THREE.Mesh(new THREE.PlaneGeometry(DISPLAY_W, DISPLAY_H), screenMat);
+    screen.position.z = 0.002;
+    group.add(screen);
+
+    // Position in the top corner of the panel, on the side nearest the front
+    const marginX = DISPLAY_W/2 + 0.12;
+    const marginY = DISPLAY_H/2 + 0.1;
+    const localX = FRONT_CORNER_SIGN[side] * (def.w/2 - marginX);
+    const localY = def.h/2 - marginY;
+
+    const normalOffset = 0.025;
+    const pos = [...def.pos];
+    if(side === 'left') pos[0] -= normalOffset;
+    if(side === 'right') pos[0] += normalOffset;
+
+    group.position.set(...pos);
+    group.rotation.set(...def.rot);
+    group.translateX(localX);
+    group.translateY(localY);
+    group.visible = false;
+    caseGroup.add(group);
+    displayMeshes[side] = group;
+  });
+
+  function updateDisplayFaceIndicator(side){
+    if(!displayMeshes[side]) return;
+    displayMeshes[side].visible = displayBySide[side];
+  }
+  SIDES_WITH_GLASS_AND_DISPLAY.forEach(updateDisplayFaceIndicator);
+
+  // --- Glass window panels — left/right sides only ---
+  const glassMeshes = {};
+
+  SIDES_WITH_GLASS_AND_DISPLAY.forEach(side => {
+    const def = FACE_DEFS.find(f => f.side === side);
+
+    const frameMat = new THREE.MeshStandardMaterial({ color: 0x0f0719, roughness: 0.5, metalness: 0.4 });
+    const frame = new THREE.Mesh(new THREE.BoxGeometry(def.w * 0.92, def.h * 0.92, 0.03), frameMat);
+
+    const glassMat = new THREE.MeshStandardMaterial({
+      color: 0x4dd9e8, transparent: true, opacity: 0.1, roughness: 0.1, metalness: 0.1, side: THREE.DoubleSide
+    });
+    const pane = new THREE.Mesh(new THREE.PlaneGeometry(def.w * 0.84, def.h * 0.84), glassMat);
+
+    const group = new THREE.Group();
+    group.add(frame);
+    group.add(pane);
+
+    const normalOffset = 0.03;
+    const pos = [...def.pos];
+    if(side === 'left') pos[0] -= normalOffset;
+    if(side === 'right') pos[0] += normalOffset;
+
+    group.position.set(...pos);
+    group.rotation.set(...def.rot);
+    group.visible = false;
+    caseGroup.add(group);
+    glassMeshes[side] = group;
+  });
+
+  function updateGlassFaceIndicator(side){
+    if(!glassMeshes[side]) return;
+    glassMeshes[side].visible = glassBySide[side];
+    // Hide the painted-design face tint a bit when glass is on, for visual clarity
+    if(faceMeshes[side]){
+      faceMeshes[side].material.opacity = glassBySide[side] ? 0.05 : faceMeshes[side].userData.baseOpacity;
+    }
+  }
+  SIDES_WITH_GLASS_AND_DISPLAY.forEach(updateGlassFaceIndicator);
+
+  caseGroup.rotation.y = -0.5;
+
+  // Drag to rotate
+  let isDragging = false;
+  let prevX = 0, prevY = 0;
+  let rotY = caseGroup.rotation.y;
+  let rotX = 0.15;
+  caseGroup.rotation.x = rotX;
+
+  function pointerDown(x, y){
+    isDragging = true;
+    prevX = x; prevY = y;
+    holder.classList.add('dragging');
+  }
+  function pointerMove(x, y){
+    if(!isDragging) return;
+    const dx = x - prevX;
+    const dy = y - prevY;
+    rotY += dx * 0.008;
+    rotX += dy * 0.006;
+    rotX = Math.max(-0.6, Math.min(0.6, rotX));
+    caseGroup.rotation.y = rotY;
+    caseGroup.rotation.x = rotX;
+    prevX = x; prevY = y;
+  }
+  function pointerUp(){
+    isDragging = false;
+    holder.classList.remove('dragging');
+  }
+
+  holder.addEventListener('mousedown', e => pointerDown(e.clientX, e.clientY));
+  window.addEventListener('mousemove', e => pointerMove(e.clientX, e.clientY));
+  window.addEventListener('mouseup', pointerUp);
+
+  holder.addEventListener('touchstart', e => {
+    const t = e.touches[0];
+    pointerDown(t.clientX, t.clientY);
+  }, { passive: true });
+  holder.addEventListener('touchmove', e => {
+    const t = e.touches[0];
+    pointerMove(t.clientX, t.clientY);
+  }, { passive: true });
+  holder.addEventListener('touchend', pointerUp);
+
+  // Click detection (only counts as click if barely moved = not a drag)
+  let downPos = { x: 0, y: 0 };
+  holder.addEventListener('mousedown', e => { downPos = { x: e.clientX, y: e.clientY }; });
+  holder.addEventListener('mouseup', e => {
+    const moved = Math.hypot(e.clientX - downPos.x, e.clientY - downPos.y);
+    if(moved < 4) handleCaseClick(e.clientX, e.clientY);
+  });
+
+  const raycaster = new THREE.Raycaster();
+  const pointerVec = new THREE.Vector2();
+
+  function handleCaseClick(clientX, clientY){
+    const rect = holder.getBoundingClientRect();
+    pointerVec.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+    pointerVec.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+    raycaster.setFromCamera(pointerVec, camera);
+    const hits = raycaster.intersectObjects(Object.values(faceMeshes));
+    if(hits.length > 0){
+      const side = hits[0].object.userData.side;
+      setActiveSide(side);
+    }
+  }
+
+  // Hover feedback (desktop)
+  holder.addEventListener('mousemove', e => {
+    if(isDragging) return;
+    const rect = holder.getBoundingClientRect();
+    pointerVec.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+    pointerVec.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    raycaster.setFromCamera(pointerVec, camera);
+    const hits = raycaster.intersectObjects(Object.values(faceMeshes));
+    Object.values(faceMeshes).forEach(mesh => {
+      if(mesh.userData.side === activeSide){
+        mesh.material.opacity = mesh.userData.activeOpacity;
+      } else if(hits.length > 0 && hits[0].object === mesh){
+        mesh.material.opacity = mesh.userData.hoverOpacity;
+        holder.style.cursor = 'pointer';
+      } else {
+        mesh.material.opacity = mesh.userData.baseOpacity;
+      }
+    });
+    if(hits.length === 0) holder.style.cursor = isDragging ? 'grabbing' : 'grab';
+  });
+
+  function animate(){
+    requestAnimationFrame(animate);
+    renderer.render(scene, camera);
+  }
+  animate();
+</script>
+
+</body>
+</html>
