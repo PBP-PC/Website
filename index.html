@@ -499,6 +499,10 @@
     display: flex;
   }
 
+  .side-only-options.display-only #glass-side-toggle{
+    display: none;
+  }
+
   .side-chip.is-blank{
     border-color: rgba(255,244,232,0.3);
     color: rgba(255,244,232,0.4);
@@ -881,6 +885,7 @@
   const displayBySide = { front: false, left: false, right: false, top: false };
   const glassBySide = { front: false, left: false, right: false, top: false };
   const SIDES_WITH_GLASS_AND_DISPLAY = ['left', 'right'];
+  const SIDES_WITH_DISPLAY = ['left', 'right', 'top'];
   let activeSide = 'front';
 
   const dropzone = document.getElementById('dropzone');
@@ -1006,7 +1011,8 @@
     skipSideCheckbox.checked = blankBySide[side];
     displaySideCheckbox.checked = displayBySide[side];
     glassSideCheckbox.checked = glassBySide[side];
-    sideOnlyOptions.classList.toggle('visible', SIDES_WITH_GLASS_AND_DISPLAY.includes(side));
+    sideOnlyOptions.classList.toggle('visible', SIDES_WITH_DISPLAY.includes(side));
+    sideOnlyOptions.classList.toggle('display-only', !SIDES_WITH_GLASS_AND_DISPLAY.includes(side));
     applyDropzoneLockState();
     renderPreviewGrid();
     sideChips.forEach(chip => {
@@ -1179,36 +1185,48 @@
   const DISPLAY_W = 0.62, DISPLAY_H = 0.42;
   const displayMeshes = {};
 
-  // For left/right side planes, local +X after rotation corresponds to:
-  //  left  (rotY = -90deg): local +X maps to world +Z  -> front is world +Z -> local +X is "toward front"
-  //  right (rotY = +90deg): local +X maps to world -Z  -> front is world +Z -> local -X is "toward front"
-  const FRONT_CORNER_SIGN = { left: 1, right: -1 };
-
-  SIDES_WITH_GLASS_AND_DISPLAY.forEach(side => {
+  SIDES_WITH_DISPLAY.forEach(side => {
     const def = FACE_DEFS.find(f => f.side === side);
     const group = new THREE.Group();
 
-    const bezelMat = new THREE.MeshStandardMaterial({ color: 0x0a0512, roughness: 0.4, metalness: 0.5 });
+    // renderOrder ensures display sits visually on top of glass panel
+    const bezelMat = new THREE.MeshStandardMaterial({ color: 0x0a0512, roughness: 0.4, metalness: 0.5, depthTest: false });
     const bezel = new THREE.Mesh(new THREE.PlaneGeometry(DISPLAY_W + 0.05, DISPLAY_H + 0.05), bezelMat);
+    bezel.renderOrder = 2;
     group.add(bezel);
 
     const screenMat = new THREE.MeshStandardMaterial({
-      color: 0x4dd9e8, emissive: 0x4dd9e8, emissiveIntensity: 0.5, roughness: 0.2
+      color: 0x4dd9e8, emissive: 0x4dd9e8, emissiveIntensity: 0.6, roughness: 0.2, depthTest: false
     });
     const screen = new THREE.Mesh(new THREE.PlaneGeometry(DISPLAY_W, DISPLAY_H), screenMat);
-    screen.position.z = 0.002;
+    screen.position.z = 0.003;
+    screen.renderOrder = 3;
     group.add(screen);
 
-    // Position in the top corner of the panel, on the side nearest the front
-    const marginX = DISPLAY_W/2 + 0.12;
-    const marginY = DISPLAY_H/2 + 0.1;
-    const localX = FRONT_CORNER_SIGN[side] * (def.w/2 - marginX);
-    const localY = def.h/2 - marginY;
-
-    const normalOffset = 0.025;
+    // Slight normal offset so display floats above the surface
+    const normalOffset = 0.04;
     const pos = [...def.pos];
-    if(side === 'left') pos[0] -= normalOffset;
-    if(side === 'right') pos[0] += normalOffset;
+
+    let localX = 0, localY = 0;
+
+    if(side === 'left'){
+      // local +X → world +Z (front), local +Y → world +Y (up)
+      // top-front corner: +X toward front, +Y up
+      localX = (def.w/2 - DISPLAY_W/2 - 0.12);   // toward front
+      localY = (def.h/2 - DISPLAY_H/2 - 0.1);    // toward top
+      pos[0] -= normalOffset;
+    } else if(side === 'right'){
+      // local +X → world -Z (back), so front is -X
+      localX = -(def.w/2 - DISPLAY_W/2 - 0.12);  // toward front
+      localY = (def.h/2 - DISPLAY_H/2 - 0.1);    // toward top
+      pos[0] += normalOffset;
+    } else if(side === 'top'){
+      // local +X → world +X, local +Y → world -Z (back), so front is local -Y
+      // front-center: localX = 0 (center), localY = -(toward front)
+      localX = 0;
+      localY = -(def.h/2 - DISPLAY_H/2 - 0.1);   // toward front edge
+      pos[1] += normalOffset;
+    }
 
     group.position.set(...pos);
     group.rotation.set(...def.rot);
@@ -1223,7 +1241,7 @@
     if(!displayMeshes[side]) return;
     displayMeshes[side].visible = displayBySide[side];
   }
-  SIDES_WITH_GLASS_AND_DISPLAY.forEach(updateDisplayFaceIndicator);
+  SIDES_WITH_DISPLAY.forEach(updateDisplayFaceIndicator);
 
   // --- Glass window panels — left/right sides only ---
   const glassMeshes = {};
@@ -1233,11 +1251,13 @@
 
     const frameMat = new THREE.MeshStandardMaterial({ color: 0x0f0719, roughness: 0.5, metalness: 0.4 });
     const frame = new THREE.Mesh(new THREE.BoxGeometry(def.w * 0.92, def.h * 0.92, 0.03), frameMat);
+    frame.renderOrder = 0;
 
     const glassMat = new THREE.MeshStandardMaterial({
-      color: 0x4dd9e8, transparent: true, opacity: 0.1, roughness: 0.1, metalness: 0.1, side: THREE.DoubleSide
+      color: 0x4dd9e8, transparent: true, opacity: 0.12, roughness: 0.05, metalness: 0.1, side: THREE.DoubleSide, depthWrite: false
     });
     const pane = new THREE.Mesh(new THREE.PlaneGeometry(def.w * 0.84, def.h * 0.84), glassMat);
+    pane.renderOrder = 1;
 
     const group = new THREE.Group();
     group.add(frame);
